@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python Basics</title>
+<style>
+:root{--bg:#0f172a;--panel:#162036;--ink:#e8eefc;--mute:#9fb0d0;--acc:#4fc3f7;--acc2:#ffd166;--ok:#7bd88f;--bad:#ff7b7b;--code:#0b1220;--line:#27375a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#app{display:flex;flex-direction:column;height:100%}
+header{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line);font-size:14px;color:var(--mute)}
+header b{color:var(--ink)}
+#bar{flex:1;height:5px;background:var(--line);border-radius:3px;overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .25s}
+main{flex:1;overflow:auto;padding:28px 6vw}
+.slide{max-width:1200px;margin:0 auto}
+h1{font-size:clamp(28px,4vw,46px);margin:0 0 6px}
+h2{font-size:clamp(22px,3vw,34px);margin:0 0 18px;color:var(--acc)}
+.sub{color:var(--mute);margin:0 0 18px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}
+@media(max-width:850px){.cols{grid-template-columns:1fr}}
+ul{padding-left:22px;line-height:1.6;font-size:clamp(16px,1.7vw,20px);margin:0 0 12px}
+li{margin:5px 0}
+code,.k{font-family:ui-monospace,Consolas,Menlo,monospace}
+code{background:var(--panel);padding:1px 6px;border-radius:5px;color:var(--acc2);font-size:.92em}
+.note{border-left:4px solid var(--acc2);background:var(--panel);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:16px;line-height:1.5}
+.good{border-color:var(--ok)} .warn{border-color:var(--bad)}
+table{border-collapse:collapse;width:100%;font-size:clamp(14px,1.5vw,18px)}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--panel);color:var(--acc)}
+.ed{background:var(--code);border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.ed .top{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#111a2e;font-size:12px;color:var(--mute)}
+.ed textarea{width:100%;background:var(--code);color:#d6e4ff;border:0;outline:0;resize:vertical;padding:12px;font:14px/1.5 ui-monospace,Consolas,Menlo,monospace;min-height:60px;tab-size:4;white-space:pre}
+.ed pre.out{margin:0;padding:10px 12px;border-top:1px solid var(--line);font:13.5px/1.45 ui-monospace,Consolas,Menlo,monospace;color:var(--ok);white-space:pre-wrap;min-height:20px}
+.ed pre.out.err{color:var(--bad)}
+.static{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:12px;font:14px/1.5 ui-monospace,Consolas,Menlo,monospace;white-space:pre;overflow:auto;margin-bottom:14px;color:#d6e4ff}
+button{background:var(--acc);color:#04202e;border:0;border-radius:7px;padding:6px 14px;font-weight:700;cursor:pointer}
+button.ghost{background:transparent;color:var(--mute);border:1px solid var(--line);font-weight:500}
+button:hover{filter:brightness(1.1)}
+footer{display:flex;justify-content:space-between;align-items:center;padding:10px 18px;border-top:1px solid var(--line)}
+#status{font-size:12px;color:var(--mute)}
+.quiz button{display:block;width:100%;text-align:left;margin:8px 0;background:var(--panel);color:var(--ink);border:1px solid var(--line);font-weight:500;padding:12px}
+.quiz button.right{border-color:var(--ok);background:#12301f}.quiz button.wrong{border-color:var(--bad);background:#35161a}
+.tag{display:inline-block;padding:2px 9px;border-radius:99px;background:var(--panel);border:1px solid var(--line);font-size:12px;color:var(--acc2);margin-right:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><b>Python Basics</b><span id="count"></span><div id="bar"><i></i></div><span id="status">Python engine: loads on first Run</span></header>
+  <main><div class="slide" id="slide"></div></main>
+  <footer>
+    <button class="ghost" id="prev">← Prev</button>
+    <span style="color:var(--mute);font-size:13px">Use ← → keys · edit any code box and press Run (Ctrl+Enter)</span>
+    <button id="next">Next →</button>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pyodide@0.26.4/pyodide.js"></script>
+<script>
+/* ---------- Python engine (Pyodide) ---------- */
+let pyPromise=null;
+function getPy(){
+  if(!pyPromise){
+    const st=document.getElementById('status'); st.textContent='Loading Python engine… (first run only)';
+    pyPromise=loadPyodide().then(p=>{st.textContent='Python ready ✓';return p;})
+      .catch(e=>{st.textContent='Could not load Python engine (check internet)';pyPromise=null;throw e;});
+  }
+  return pyPromise;
+}
+async function runCode(code,outEl){
+  outEl.className='out';outEl.textContent='Running…';
+  try{
+    const py=await getPy();let buf='';
+    py.setStdout({batched:s=>buf+=s+'\n'});py.setStderr({batched:s=>buf+=s+'\n'});
+    const g=py.globals.get('dict')();
+    try{py.runPython(code,{globals:g});}finally{g.destroy();}
+    outEl.textContent=buf||'(no output)';
+  }catch(e){
+    outEl.className='out err';
+    outEl.textContent=String(e.message||e).split('\n').filter(l=>!l.includes('pyodide/')&&!l.includes('_pyodide')).join('\n').trim();
+  }
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function editor(code,title){
+  const d=document.createElement('div');d.className='ed';
+  d.innerHTML=`<div class="top"><span>${title||'Python'} — editable</span><span><button class="ghost reset">Reset</button> <button class="run">▶ Run</button></span></div><textarea spellcheck="false"></textarea><pre class="out"></pre>`;
+  const ta=d.querySelector('textarea'),out=d.querySelector('.out');
+  ta.value=code;const fit=()=>{ta.rows=Math.max(3,ta.value.split('\n').length)};fit();ta.addEventListener('input',fit);
+  d.querySelector('.run').onclick=()=>runCode(ta.value,out);
+  d.querySelector('.reset').onclick=()=>{ta.value=code;fit();out.textContent='';out.className='out'};
+  ta.addEventListener('keydown',e=>{
+    if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.setRangeText('    ',s,ta.selectionEnd,'end');}
+    if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();d.querySelector('.run').click();}
+    e.stopPropagation();
+  });
+  return d;
+}
+
+/* ---------- Slide content ---------- */
+const S=String.raw;
+const slides=[
+{type:'title'},
+
+{h:'Why choose Python over C++?',html:`
+<p class="sub">Both are excellent. The question is which fits the job.</p>
+<table>
+<tr><th></th><th>Python</th><th>C++</th></tr>
+<tr><td>Execution</td><td>Interpreted: run the file directly</td><td>Compiled: build step, then run</td></tr>
+<tr><td>Typing</td><td>Dynamic (type set by the value)</td><td>Static (declare every type)</td></tr>
+<tr><td>Syntax</td><td>Short, readable, indentation = blocks</td><td>Verbose: braces, semicolons, headers</td></tr>
+<tr><td>Memory</td><td>Managed for you (garbage collection)</td><td>You manage it (pointers, new/delete, RAII)</td></tr>
+<tr><td>Speed</td><td>Slower for raw loops</td><td>Very fast, close to hardware</td></tr>
+<tr><td>Best for</td><td>Data science, ML, scripting, automation, prototyping</td><td>Embedded, games, drivers, real-time systems</td></tr>
+</table>
+<div class="note good">Python is usually the faster way to <b>write</b> and test an idea. C++ is usually the faster way to <b>run</b> it.</div>`},
+
+{h:'Same task, two languages',html:`
+<p class="sub">Print three lines and add two numbers.</p>
+<div class="note">Python needs no headers, no <code>main()</code>, no type declarations, no semicolons.</div>
+<div class="note warn">Python's speed trade-off is real, but heavy libraries (NumPy, SciPy, PyTorch) run compiled C/C++ code underneath, so you get both.</div>
+<div class="note">Rule of thumb: prototype in Python; rewrite only the proven bottleneck in C++ if you need to.</div>`,
+ static:`// C++ (needs compile step)
+#include <iostream>
+using namespace std;
+
+int main() {
+    int a = 5;
+    int b = 7;
+    cout << "Hello World!" << endl;
+    cout << a + b << endl;
+    return 0;
+}`,
+ code:[S`# Python (just run it)
+a = 5
+b = 7
+print("Hello World!")
+print(a + b)`]},
+
+{h:'Running Python',html:`
+<ul>
+<li><b>Interactive (command line / REPL):</b> type <code>python</code>, then statements run immediately.</li>
+<li><b>Script file:</b> save as <code>myfile.py</code> and run <code>python myfile.py</code></li>
+<li>In this deck, press <b>▶ Run</b> on any code box. You can edit the code first.</li>
+</ul>
+<div class="note">Command line style: <code>&gt;&gt;&gt; print("Hello, World!")</code> prints <code>Hello, World!</code></div>`,
+ code:[S`print("Hello, World!")`]},
+
+{h:'Indentation matters',html:`
+<ul>
+<li>Indentation = spaces at the start of a line.</li>
+<li>In many languages it is only for readability. <b>In Python it defines the code block.</b></li>
+<li>Be consistent: use the same number of spaces (4 is the convention) within a block.</li>
+</ul>
+<div class="note warn">Try it: delete the spaces before the second <code>print</code> and Run. Python raises an <code>IndentationError</code>.</div>`,
+ code:[S`x = 5
+if x > 2:
+    print("Five is greater than two!")
+    print("Still inside the block")
+print("Outside the block")`]},
+
+{h:'Statements',html:`
+<ul>
+<li>A program is a list of instructions. Each instruction is a <b>statement</b>.</li>
+<li>A statement usually ends when the <b>line ends</b>. No <code>;</code> needed (unlike Java, C, C++).</li>
+<li>Statements run one by one, in the order written.</li>
+</ul>`,
+ code:[S`print("Hello World!")
+print("Have a good day.")
+print("Learning Python is fun!")`]},
+
+{h:'Semicolons (optional, rarely used)',html:`
+<ul>
+<li>You <i>can</i> put several statements on one line with <code>;</code>, but it hurts readability.</li>
+<li>Two statements on one line with <b>no</b> separator is a <code>SyntaxError</code>.</li>
+</ul>`,
+ code:[S`print("Hello"); print("How are you?"); print("Bye bye!")`,
+       S`# Remove the semicolon and Run: Python gives an error
+print("Hello") print("Oops")`]},
+
+{h:'print(): end, numbers, mixing',html:`
+<ul>
+<li><code>print()</code> ends with a new line by default. Use <code>end=</code> to change that.</li>
+<li>Numbers go <b>without</b> quotes.</li>
+<li>Mix text and numbers by separating with commas.</li>
+</ul>`,
+ code:[S`print("Hello World!", end=" ")
+print("I will print on the same line.")`,
+       S`print(3)
+print(358)
+print(50000)
+print("I am", 35, "years old.")`]},
+
+{h:'Comments',html:`
+<ul>
+<li>Start with <code>#</code>. Python ignores the rest of the line.</li>
+<li>Uses: explain code, make it readable, <b>disable code while testing</b>.</li>
+<li>Multi-line: one <code>#</code> per line, or an unassigned triple-quoted string.</li>
+</ul>
+<div class="note">Strictly, the triple-quoted string is not a comment. It is a string literal Python evaluates and discards. Docstrings use the same syntax.</div>`,
+ code:[S`#This is a comment
+print("Hello, World!")  # end-of-line comment
+
+#print("This line is disabled")
+print("Cheers, Mate!")
+
+"""
+This is a comment
+written in
+more than just one line
+"""
+print("Done")`]},
+
+{h:'Variables',html:`
+<ul>
+<li>Containers for storing data values.</li>
+<li>No declaration command. A variable is <b>created when you first assign</b> a value.</li>
+<li>Type can change after assignment (dynamic typing).</li>
+<li>Single or double quotes both work for strings.</li>
+<li>Names are <b>case-sensitive</b>: <code>a</code> and <code>A</code> are different.</li>
+</ul>`,
+ code:[S`x = 5
+y = "John"
+print(x)
+print(y)
+
+x = 4        # x is int
+x = "Sally"  # x is now str
+print(x)
+
+a = 4
+A = "Sally"  # does not overwrite a
+print(a, A)`]},
+
+{h:'Casting and type()',html:`
+<ul>
+<li>Casting specifies a type using constructor functions: <code>int()</code>, <code>float()</code>, <code>str()</code>.</li>
+<li><code>type()</code> tells you the type of any value.</li>
+</ul>`,
+ code:[S`x = str(3)     # '3'
+y = int(3)     # 3
+z = float(3)   # 3.0
+print(x, y, z)
+print(type(x), type(y), type(z))
+
+print(int(2.8))     # decimals removed, not rounded
+print(int("3"))
+print(float("4.2"))`]},
+
+{h:'Variable naming rules',html:`
+<ul>
+<li>Must start with a <b>letter or underscore</b></li>
+<li>Cannot start with a number</li>
+<li>Only letters, digits, underscore</li>
+<li>Case-sensitive; cannot be a Python keyword</li>
+</ul>
+<p><span class="tag">camelCase</span><span class="tag">PascalCase</span><span class="tag">snake_case</span></p>
+<div class="note good">Python style (PEP 8) prefers <b>snake_case</b> for variables and functions.</div>`,
+ code:[S`myvar = "John"
+my_var = "John"
+_my_var = "John"
+myVar = "John"
+MYVAR = "John"
+myvar2 = "John"
+print("All legal")
+
+# Try each of these (they fail):
+# 2myvar = "John"
+# my-var = "John"
+# my var = "John"`]},
+
+{h:'Assigning many values',html:`
+<ul>
+<li><b>Many values → many variables</b> in one line.</li>
+<li><b>One value → many variables.</b></li>
+<li><b>Unpacking</b> a list/tuple into variables (counts must match).</li>
+</ul>`,
+ code:[S`x, y, z = "Orange", "Banana", "Cherry"
+print(x, y, z)
+
+a = b = c = "Orange"
+print(a, b, c)
+
+fruits = ["apple", "banana", "cherry"]
+p, q, r = fruits
+print(p, q, r)`]},
+
+{h:'Output variables',html:`
+<ul>
+<li>Comma separates values and works with any types.</li>
+<li><code>+</code> joins strings. With a string and a number it raises <code>TypeError</code>.</li>
+</ul>`,
+ code:[S`x = "Python"
+y = "is"
+z = "awesome"
+print(x, y, z)
+print(x + " " + y + " " + z)
+
+# Try this: Python can't add a number and a string
+print(5 + "John")`]},
+
+{h:'Global and local variables',html:`
+<ul>
+<li>Created <b>outside</b> a function = global (readable everywhere).</li>
+<li>Same name <b>inside</b> a function = a new local variable; the global is unchanged.</li>
+<li><code>global</code> keyword creates or changes a global from inside a function.</li>
+</ul>`,
+ code:[S`x = "awesome"
+
+def myfunc():
+    x = "fantastic"      # local
+    print("Inside:", x)
+
+myfunc()
+print("Outside:", x)`,
+       S`def myfunc():
+    global x
+    x = "fantastic"
+
+myfunc()
+print("Python is " + x)`]},
+
+{h:'Built-in data types',html:`
+<table>
+<tr><th>Category</th><th>Types</th></tr>
+<tr><td>Text</td><td><code>str</code></td></tr>
+<tr><td>Numeric</td><td><code>int</code> <code>float</code> <code>complex</code></td></tr>
+<tr><td>Sequence</td><td><code>list</code> <code>tuple</code> <code>range</code></td></tr>
+<tr><td>Mapping</td><td><code>dict</code></td></tr>
+<tr><td>Set</td><td><code>set</code> <code>frozenset</code></td></tr>
+<tr><td>Boolean</td><td><code>bool</code></td></tr>
+<tr><td>Binary</td><td><code>bytes</code> <code>bytearray</code> <code>memoryview</code></td></tr>
+<tr><td>None</td><td><code>NoneType</code></td></tr>
+</table>
+<p class="sub" style="margin-top:12px">The type is set when you assign a value. Run the code to see each one.</p>`,
+ code:[S`values = ["Hello World", 20, 20.5, 1j, ["apple","banana"],
+          ("apple","banana"), range(6), {"name":"John","age":36},
+          {"apple","banana"}, frozenset({"apple"}), True,
+          b"Hello", bytearray(5), memoryview(bytes(5)), None]
+for v in values:
+    print(type(v).__name__.ljust(11), repr(v))`]},
+
+{h:'Numbers',html:`
+<ul>
+<li><code>int</code>: whole numbers, <b>unlimited length</b>.</li>
+<li><code>float</code>: decimals; scientific notation with <code>e</code>.</li>
+<li><code>complex</code>: imaginary part with <code>j</code>.</li>
+<li>Convert with <code>int() float() complex()</code>. Complex cannot be converted to other number types.</li>
+<li>Random numbers need the <code>random</code> module.</li>
+</ul>`,
+ code:[S`x = 1; y = 2.8; z = 1j
+print(type(x), type(y), type(z))
+
+print(35656222554887711 ** 3)   # int never overflows
+print(35e3, 12E4, -87.7e100)
+print(3+5j, type(3+5j))
+
+print(float(x), int(y), complex(x))
+
+import random
+print(random.randrange(1, 10))`]},
+
+{h:'Strings: basics',html:`
+<ul>
+<li>Single or double quotes; triple quotes for multi-line.</li>
+<li>Strings are sequences of characters. There is no separate char type.</li>
+<li>Index from <code>0</code>; <code>len()</code> gives length.</li>
+<li><code>in</code> / <code>not in</code> check for text.</li>
+</ul>`,
+ code:[S`a = "Hello, World!"
+print(a[1])
+print(len(a))
+for ch in "banana":
+    print(ch, end=" ")
+print()
+
+txt = "The best things in life are free!"
+print("free" in txt)
+print("expensive" not in txt)
+
+print("""Line one
+Line two""")`]},
+
+{h:'String slicing',html:`
+<ul>
+<li><code>s[start:end]</code>: <b>end is not included</b>.</li>
+<li>Leave out start or end to go from the beginning or to the end.</li>
+<li>Negative index counts from the end.</li>
+</ul>
+<div class="note">Same rules apply to lists (later slides).</div>`,
+ code:[S`b = "Hello, World!"
+print(b[2:5])
+print(b[:5])
+print(b[2:])
+print(b[-5:-2])`]},
+
+{h:'Modifying strings',html:`
+<ul>
+<li><code>upper() lower() strip() replace() split()</code> and many more.</li>
+<li>⚠ Methods <b>return new values</b>. They do not change the original string.</li>
+</ul>`,
+ code:[S`a = " Hello, World! "
+print(a.upper())
+print(a.lower())
+print(a.strip())
+print(a.replace("H", "J"))
+print(a.split(","))
+
+s = "hello"
+s.upper()          # result discarded!
+print(s)           # still lowercase
+s = s.upper()
+print(s)`]},
+
+{h:'Concatenation and f-strings',html:`
+<ul>
+<li><code>+</code> joins strings (add <code>" "</code> for a space).</li>
+<li><b>f-strings</b> (Python 3.6+) are the preferred way to mix text and values.</li>
+<li>Inside <code>{}</code> you can use variables, math, and format modifiers like <code>:.2f</code>.</li>
+</ul>`,
+ code:[S`a = "Hello"; b = "World"
+print(a + " " + b)
+
+age = 36
+print(f"My name is John, I am {age}")
+
+price = 59
+print(f"The price is {price:.2f} dollars")
+print(f"The price is {20 * 59} dollars")`]},
+
+{h:'Escape characters',html:`
+<ul>
+<li>A backslash <code>\\</code> lets you insert characters that are otherwise illegal in a string.</li>
+</ul>
+<table>
+<tr><th>Code</th><th>Result</th></tr>
+<tr><td><code>\\'</code></td><td>Single quote</td></tr>
+<tr><td><code>\\"</code></td><td>Double quote</td></tr>
+<tr><td><code>\\\\</code></td><td>Backslash</td></tr>
+<tr><td><code>\\n</code></td><td>New line</td></tr>
+<tr><td><code>\\t</code></td><td>Tab</td></tr>
+<tr><td><code>\\r \\b \\f</code></td><td>Carriage return, backspace, form feed</td></tr>
+<tr><td><code>\\ooo \\xhh</code></td><td>Octal / hex value</td></tr>
+</table>`,
+ code:[S`txt = "We are the so-called \"Vikings\" from the north."
+print(txt)
+print("Line1\nLine2\tTabbed")
+print("Backslash: \\")`]},
+
+{h:'Booleans',html:`
+<ul>
+<li>Only two values: <code>True</code> and <code>False</code>.</li>
+<li>Comparisons return booleans. <code>bool()</code> evaluates any value.</li>
+<li><b>False values:</b> <code>False None 0 "" () [] {}</code>. Almost everything else is True.</li>
+<li>Functions can return booleans; <code>isinstance()</code> checks types.</li>
+</ul>`,
+ code:[S`print(10 > 9, 10 == 9, 10 < 9)
+
+for v in ["Hello", 15, "abc", [1,2], "", 0, [], {}, None, False]:
+    print(repr(v).ljust(10), bool(v))
+
+x = 200
+print(isinstance(x, int))`]},
+
+{h:'Arithmetic operators',html:`
+<table>
+<tr><th>Op</th><th>Name</th><th>Example</th></tr>
+<tr><td><code>+</code></td><td>Addition</td><td>x + y</td></tr>
+<tr><td><code>-</code></td><td>Subtraction</td><td>x - y</td></tr>
+<tr><td><code>*</code></td><td>Multiplication</td><td>x * y</td></tr>
+<tr><td><code>/</code></td><td>Division (always float)</td><td>x / y</td></tr>
+<tr><td><code>%</code></td><td>Modulus</td><td>x % y</td></tr>
+<tr><td><code>**</code></td><td>Exponent</td><td>x ** y</td></tr>
+<tr><td><code>//</code></td><td>Floor division (rounds down)</td><td>x // y</td></tr>
+</table>`,
+ code:[S`x = 15
+y = 4
+print(x + y, x - y, x * y)
+print(x / y)
+print(x % y)
+print(x ** y)
+print(x // y)
+
+print(12 / 5, 12 // 5)
+print(-7 // 2)   # floors DOWN, not toward zero`]},
+
+{h:'Comparison and logical operators',html:`
+<ul>
+<li>Comparison: <code>== != &gt; &lt; &gt;= &lt;=</code> return True/False.</li>
+<li>Logical: <code>and</code> <code>or</code> <code>not</code></li>
+<li>Python allows <b>chaining</b>: <code>1 &lt; x &lt; 10</code></li>
+</ul>`,
+ code:[S`x = 5; y = 3
+print(x == y, x != y, x > y, x < y, x >= y, x <= y)
+
+print(1 < x < 10)
+print(x > 0 and x < 10)
+print(x < 5 or x > 10)
+print(not(x > 3 and x < 10))`]},
+
+{h:'Identity and membership operators',html:`
+<ul>
+<li><code>is</code> / <code>is not</code>: <b>same object in memory?</b></li>
+<li><code>==</code>: <b>equal values?</b></li>
+<li><code>in</code> / <code>not in</code>: is a value present in a sequence?</li>
+</ul>
+<div class="note warn">Common mistake: using <code>is</code> to compare values. Use <code>==</code> for values.</div>`,
+ code:[S`x = ["apple", "banana"]
+y = ["apple", "banana"]
+z = x
+print(x is z)     # True: same object
+print(x is y)     # False: equal but separate objects
+print(x == y)     # True: equal values
+
+fruits = ["apple", "banana", "cherry"]
+print("banana" in fruits)
+print("pineapple" not in fruits)
+text = "Hello World"
+print("H" in text, "hello" in text, "z" not in text)`]},
+
+{h:'Bitwise operators',html:`
+<table>
+<tr><th>Op</th><th>Name</th><th>Meaning</th></tr>
+<tr><td><code>&amp;</code></td><td>AND</td><td>1 if both bits are 1</td></tr>
+<tr><td><code>|</code></td><td>OR</td><td>1 if either bit is 1</td></tr>
+<tr><td><code>^</code></td><td>XOR</td><td>1 if only one bit is 1</td></tr>
+<tr><td><code>~</code></td><td>NOT</td><td>Inverts all bits</td></tr>
+<tr><td><code>&lt;&lt;</code></td><td>Left shift</td><td>Push zeros in from the right</td></tr>
+<tr><td><code>&gt;&gt;</code></td><td>Right shift</td><td>Push sign bit in from the left</td></tr>
+</table>`,
+ code:[S`print(f"{6:04b} & {3:04b} = {6 & 3:04b} ({6 & 3})")
+print(f"{6:04b} | {3:04b} = {6 | 3:04b} ({6 | 3})")
+print(f"{6:04b} ^ {3:04b} = {6 ^ 3:04b} ({6 ^ 3})")
+print(3 << 2, 12 >> 2, ~5)`]},
+
+{h:'Operator precedence and the ternary',html:`
+<ul>
+<li>Order (high → low): <code>()</code> → <code>**</code> → unary <code>+x -x ~x</code> → <code>* / // %</code> → <code>+ -</code> → shifts → <code>&amp;</code> → <code>^</code> → <code>|</code> → comparisons/identity/membership → <code>not</code> → <code>and</code> → <code>or</code></li>
+<li>Same precedence: left to right.</li>
+<li><b>Ternary</b> (conditional expression): <code>a if condition else b</code></li>
+</ul>
+<div class="note good">When in doubt, add parentheses. It is clearer for the reader.</div>`,
+ code:[S`print((6 + 3) - (6 + 3))
+print(100 + 5 * 3)
+print(5 + 4 - 7 + 3)
+
+num = 6
+x = "WEEKEND!" if num > 5 else "Workday"
+print(x)
+
+x = "Fri" if num == 5 else "Sat" if num == 6 else "Sun" if num == 7 else "weekday"
+print(x)`]},
+
+{h:'Lists',html:`
+<ul>
+<li>Store multiple items in <b>one variable</b>. Created with <code>[ ]</code>.</li>
+<li><b>Ordered, changeable, allow duplicates.</b> Indexed from 0.</li>
+<li>Items can be <b>any type, mixed</b>. <code>len()</code> gives size.</li>
+<li>Also: <code>list(("a","b"))</code> constructor (note double brackets).</li>
+</ul>`,
+ code:[S`thislist = ["apple", "banana", "cherry", "apple", "cherry"]
+print(thislist)
+print(len(thislist))
+
+mixed = ["abc", 34, True, 40, "male"]
+print(mixed, type(mixed))
+
+print(list(("apple", "banana", "cherry")))`]},
+
+{h:'Collections: choosing the right one',html:`
+<p class="sub">Added slide. Summarises the four collection types the material mentions.</p>
+<table>
+<tr><th>Type</th><th>Syntax</th><th>Ordered</th><th>Changeable</th><th>Duplicates</th></tr>
+<tr><td>List</td><td><code>[ ]</code></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Tuple</td><td><code>( )</code></td><td>Yes</td><td>No</td><td>Yes</td></tr>
+<tr><td>Set</td><td><code>{ }</code></td><td>No</td><td>Items fixed, but add/remove OK</td><td>No</td></tr>
+<tr><td>Dict</td><td><code>{k: v}</code></td><td>Yes (3.7+)</td><td>Yes</td><td>Keys: No</td></tr>
+</table>`,
+ code:[S`print(["a", "b", "a"])           # list keeps duplicates
+print(("a", "b", "a"))           # tuple too, but immutable
+print({"a", "b", "a"})           # set drops duplicates
+print({"name": "John", "age": 36})
+
+t = ("a", "b")
+# t[0] = "z"     # TypeError: tuples can't change`]},
+
+{h:'Access list items',html:`
+<ul>
+<li>By index: <code>list[1]</code>. Negative index counts from the end (<code>-1</code> = last).</li>
+<li>Ranges: <code>list[2:5]</code> (end not included); leave out start or end.</li>
+<li>Check existence with <code>in</code>.</li>
+</ul>`,
+ code:[S`thislist = ["apple", "banana", "cherry", "orange", "kiwi", "melon", "mango"]
+print(thislist[1])
+print(thislist[-1])
+print(thislist[2:5])
+print(thislist[:4])
+print(thislist[2:])
+print(thislist[-4:-1])
+if "apple" in thislist:
+    print("Yes, 'apple' is in the fruits list")`]},
+
+{h:'Change list items',html:`
+<ul>
+<li>Change one item by index; replace a <b>range</b> with a new list.</li>
+<li>If counts differ, the list length changes.</li>
+</ul>`,
+ code:[S`thislist = ["apple", "banana", "cherry"]
+thislist[1] = "blackcurrant"
+print(thislist)
+
+a = ["apple", "banana", "cherry", "orange", "kiwi", "mango"]
+a[1:3] = ["blackcurrant", "watermelon"]
+print(a)
+
+b = ["apple", "banana", "cherry"]
+b[1:2] = ["blackcurrant", "watermelon"]   # 1 replaced by 2
+print(b)
+
+c = ["apple", "banana", "cherry"]
+c[1:3] = ["watermelon"]                   # 2 replaced by 1
+print(c)`]},
+
+{h:'Add list items',html:`
+<ul>
+<li><code>append(x)</code>: add to the <b>end</b>.</li>
+<li><code>insert(i, x)</code>: add at an index.</li>
+<li><code>extend(iterable)</code>: add all elements of another list, tuple, set…</li>
+</ul>`,
+ code:[S`thislist = ["apple", "banana", "cherry"]
+thislist.append("orange")
+print(thislist)
+
+thislist.insert(1, "kiwi")
+print(thislist)
+
+tropical = ["mango", "pineapple", "papaya"]
+thislist.extend(tropical)
+print(thislist)
+
+thislist.extend(("lime", "lemon"))   # a tuple works too
+print(thislist)`]},
+
+{h:'Remove list items',html:`
+<ul>
+<li><code>remove(x)</code>: removes the <b>first</b> matching value.</li>
+<li><code>pop(i)</code>: removes index <code>i</code>; no argument = last item (and returns it).</li>
+<li><code>del list[i]</code>: removes by index; <code>del list</code> deletes the whole list.</li>
+<li><code>clear()</code>: empties the list but keeps it.</li>
+</ul>`,
+ code:[S`a = ["apple", "banana", "cherry", "banana", "kiwi"]
+a.remove("banana")       # first one only
+print(a)
+
+b = ["apple", "banana", "cherry"]
+print(b.pop(1), b)
+print(b.pop(), b)
+
+c = ["apple", "banana", "cherry"]
+del c[0]
+print(c)
+
+d = ["apple", "banana", "cherry"]
+d.clear()
+print(d)`]},
+
+{h:'Common beginner mistakes',html:`
+<p class="sub">Added slide. Each one is runnable. Predict the output first, then Run.</p>`,
+ code:[S`# 1. Forgetting that methods return new strings
+name = "ali"
+name.upper()
+print(name)
+
+# 2. Quotes around numbers change the type
+print("5" + "5", 5 + 5)
+
+# 3. / always gives a float
+print(10 / 2)
+
+# 4. int() truncates, it doesn't round
+print(int(2.9))`,
+       S`# 5. Copying a list: assignment does NOT copy
+a = [1, 2, 3]
+b = a
+b.append(99)
+print(a)          # a changed too!
+
+c = a.copy()      # a real copy
+c.append(100)
+print(a, c)`]},
+
+{type:'quiz'},
+
+{h:'Summary',html:`
+<ul>
+<li>Python: readable, dynamic, interpreted. Great for fast development; pair with C/C++ libraries when speed matters.</li>
+<li><b>Indentation is syntax.</b> One statement per line; no semicolons.</li>
+<li>Variables are created on assignment; types are dynamic; use <code>type()</code> and casting.</li>
+<li>Strings: slicing, methods return new strings, prefer f-strings.</li>
+<li>Operators: arithmetic, comparison, logical, identity (<code>is</code>), membership (<code>in</code>), bitwise; know precedence.</li>
+<li>Lists: ordered, changeable, indexed; append / insert / extend / remove / pop / del / clear.</li>
+</ul>
+<div class="note good">Next topics: tuples, sets, dictionaries, if/else, loops, functions.</div>`}
+];
+
+/* ---------- Renderer ---------- */
+let i=0;
+const root=document.getElementById('slide');
+function render(){
+  const s=slides[i];root.innerHTML='';
+  if(s.type==='title'){
+    root.innerHTML=`<div style="text-align:center;padding:9vh 0"><h1>Python Basics</h1><p class="sub" style="font-size:20px">Syntax · Comments · Variables · Data types · Strings · Operators · Lists</p><p class="sub">Every code box is live: edit it and press ▶ Run.</p><p><span class="tag">Includes: Why Python vs C++</span></p></div>`;
+  }else if(s.type==='quiz'){
+    root.innerHTML=`<h2>Quick check</h2><div class="quiz"><p style="font-size:20px">Which is a list method for removing list items?</p></div>`;
+    const q=root.querySelector('.quiz');const note=document.createElement('div');
+    [['pop()',1],['push()',0],['delete()',0]].forEach(([t,ok])=>{
+      const b=document.createElement('button');b.textContent=t;
+      b.onclick=()=>{b.classList.add(ok?'right':'wrong');note.className='note '+(ok?'good':'warn');
+        note.innerHTML=ok?'Correct: <code>pop()</code>. Also valid in Python: <code>remove()</code>, <code>clear()</code>, and the <code>del</code> keyword. <code>push()</code> and <code>delete()</code> don\'t exist on lists (use <code>append()</code> to add).':'Not quite. Lists have no <code>push()</code> or <code>delete()</code>. Try again.';};
+      q.appendChild(b);
+    });
+    q.appendChild(note);
+    root.appendChild(editor(S`# Try them all and watch the list change
+fruits = ["apple", "banana", "cherry", "kiwi"]
+fruits.pop()
+print(fruits)
+fruits.remove("apple")
+print(fruits)
+fruits.clear()
+print(fruits)`,'Exercise playground'));
+  }else{
+    const wrap=document.createElement('div');
+    wrap.innerHTML=`<h2>${s.h}</h2>`;
+    const cols=document.createElement('div');cols.className=(s.code||s.static)?'cols':'';
+    const left=document.createElement('div');left.innerHTML=s.html||'';
+    cols.appendChild(left);
+    if(s.code||s.static){
+      const right=document.createElement('div');
+      if(s.static){
+        const d=document.createElement('div');d.className='static';
+        d.innerHTML = esc(s.static);
+        right.appendChild(d);
+      }
+      (s.code||[]).forEach(c=>right.appendChild(editor(c)));
+      cols.appendChild(right);
+    }
+    wrap.appendChild(cols);root.appendChild(wrap);
+  }
+  document.getElementById('count').textContent=`Slide ${i+1} / ${slides.length}`;
+  document.querySelector('#bar i').style.width=((i+1)/slides.length*100)+'%';
+  document.getElementById('prev').disabled=i===0;
+  document.getElementById('next').disabled=i===slides.length-1;
+  document.querySelector('main').scrollTop=0;
+  location.hash=i+1;
+}
+function go(n){i=Math.max(0,Math.min(slides.length-1,n));render();}
+document.getElementById('prev').onclick=()=>go(i-1);
+document.getElementById('next').onclick=()=>go(i+1);
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='TEXTAREA')return;
+  if(e.key==='ArrowRight'||e.key==='PageDown')go(i+1);
+  if(e.key==='ArrowLeft'||e.key==='PageUp')go(i-1);
+});
+const h=parseInt(location.hash.slice(1));if(h)i=Math.min(slides.length,Math.max(1,h))-1;
+render();
+</script>
+</body>
+</html>
